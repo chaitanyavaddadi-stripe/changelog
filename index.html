@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Content from Google Sheet</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Custom styles to enhance Tailwind */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* A light, pleasant blue-gray background */
+        }
+
+        /* Hide the default ugly arrow on details/summary */
+        summary::-webkit-details-marker {
+            display: none;
+        }
+
+        /* Smooth transition for the custom chevron icon */
+        details[open] > summary .chevron {
+            transform: rotate(180deg);
+        }
+        
+        .chevron {
+            transition: transform 0.2s ease-in-out;
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-5xl">
+        
+        <!-- Header -->
+        <header class="text-center mb-10">
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-900">Project Showcase</h1>
+            <p class="mt-2 text-lg text-gray-600">Live data updated directly from our Google Sheet.</p>
+        </header>
+
+        <!-- Loading Spinner -->
+        <div id="loading" class="text-center py-20">
+            <div role="status" class="flex justify-center items-center">
+                <svg aria-hidden="true" class="w-12 h-12 text-gray-400 animate-spin fill-blue-600" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/>
+                    <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0492C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentFill"/>
+                </svg>
+                <span class="ml-4 text-lg text-gray-600">Fetching live data...</span>
+            </div>
+        </div>
+        
+        <!-- Error Message Container -->
+        <div id="error-message" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg" role="alert">
+            <p class="font-bold">Error</p>
+            <p id="error-text"></p>
+        </div>
+
+        <!-- This container will be populated with data from the script -->
+        <div id="content-container" class="space-y-8"></div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // The public URL of your Google Sheet, published as CSV
+            const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSi7nuh8sIVUmRxhPhhZK4GoXT6TgDI4PwrqLzGol7ZOqks6NoB3diIKtNc7JfUxFb2n8dTxLpDU_uu/pub?output=csv';
+            // Using a reliable CORS proxy to prevent fetch errors.
+            // The `allorigins` proxy fetches the raw content from the URL.
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(sheetUrl)}`;
+
+
+            const contentContainer = document.getElementById('content-container');
+            const loadingIndicator = document.getElementById('loading');
+            const errorMessageContainer = document.getElementById('error-message');
+            const errorTextElement = document.getElementById('error-text');
+            
+            /**
+             * Fetches and displays data from the Google Sheet via a public proxy.
+             */
+            async function fetchAndDisplayData() {
+                try {
+                    const response = await fetch(proxyUrl);
+                    if (!response.ok) {
+                        throw new Error(`The data source could not be reached. Status: ${response.status}`);
+                    }
+                    const csvText = await response.text();
+                     if (!csvText || csvText.trim() === '' || csvText.trim().startsWith('<!DOCTYPE html>')) {
+                        throw new Error("Received invalid or empty data. Please ensure the Google Sheet URL is correct and it is published as a CSV to the web.");
+                    }
+                    const data = parseCSV(csvText);
+                    const structuredData = structureData(data);
+                    displayData(structuredData);
+
+                } catch (error) {
+                    console.error('Failed to fetch or process data:', error);
+                    let userMessage = 'An unexpected error occurred. Please try again later.';
+                     if (error.message.includes('Failed to fetch')) {
+                        userMessage = 'A network error occurred. This may be due to browser security policies or a temporary issue. Running this page from a web server (like GitHub Pages) is recommended.';
+                    } else {
+                        userMessage = error.message; // Display other specific error messages
+                    }
+                    errorTextElement.textContent = userMessage;
+                    errorMessageContainer.classList.remove('hidden');
+                } finally {
+                    loadingIndicator.classList.add('hidden');
+                }
+            }
+
+            /**
+             * Parses CSV text into an array of objects.
+             * @param {string} text - The CSV data as a string.
+             * @returns {Array<Object>} An array of objects representing the rows.
+             */
+            function parseCSV(text) {
+                const lines = text.trim().split(/\r?\n/); // Handles both windows and unix line endings
+                const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+                const rows = [];
+
+                if (lines.length < 2) {
+                     throw new Error("The CSV data appears to be empty or has no data rows.");
+                }
+
+                for (let i = 1; i < lines.length; i++) {
+                    if (lines[i].trim() === '') continue; // Skip empty lines
+                    // This regex handles quoted fields with commas inside
+                    const values = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                    
+                    if (values.length === headers.length) {
+                        const row = {};
+                        for (let j = 0; j < headers.length; j++) {
+                             // Remove quotes from start/end of value if they exist
+                            row[headers[j]] = values[j].trim().replace(/^"|"$/g, '');
+                        }
+                        rows.push(row);
+                    }
+                }
+                return rows;
+            }
+            
+            /**
+             * Groups the flat data array by Category, then by Sub Category.
+             * @param {Array<Object>} data - The parsed data from the CSV.
+             * @returns {Object} A nested object: { Category: { SubCategory: [rows] } }
+             */
+            function structureData(data) {
+                const structured = {};
+                if (!data || data.length === 0) return structured;
+                
+                const headers = Object.keys(data[0]);
+                if (headers.length < 2) {
+                    throw new Error("The CSV data must have at least two columns for Category and Sub-Category.");
+                }
+
+                const categoryHeader = headers[0];
+                const subCategoryHeader = headers[1];
+
+                data.forEach(row => {
+                    const category = row[categoryHeader];
+                    const subCategory = row[subCategoryHeader];
+
+                    if (!category || !subCategory) return;
+
+                    if (!structured[category]) {
+                        structured[category] = {};
+                    }
+                    if (!structured[category][subCategory]) {
+                        structured[category][subCategory] = [];
+                    }
+                    structured[category][subCategory].push(row);
+                });
+
+                return structured;
+            }
+
+            /**
+             * Renders the structured data into HTML and injects it into the page.
+             * @param {Object} structuredData - The grouped data.
+             */
+            function displayData(structuredData) {
+                let html = '';
+                const headers = Object.keys(structuredData).length > 0 && Object.keys(Object.values(structuredData)[0]).length > 0 && Object.values(Object.values(structuredData)[0])[0].length > 0 ? Object.keys(Object.values(Object.values(structuredData)[0])[0][0]) : [];
+
+                for (const category in structuredData) {
+                    // Main Category Title
+                    html += `<div class="category-group">`;
+                    html += `<h1 class="text-4xl font-bold text-blue-700 mb-6 pb-2 border-b-2 border-blue-200">${category}</h1>`;
+                    html += `<div class="space-y-4">`;
+
+                    for (const subCategory in structuredData[category]) {
+                        // Collapsible Sub Category Section
+                        html += `
+                            <details class="group bg-white rounded-xl shadow-md transition hover:shadow-lg">
+                                <summary class="flex justify-between items-center p-5 cursor-pointer list-none">
+                                    <h2 class="text-xl font-semibold text-gray-800">${subCategory}</h2>
+                                    <span class="chevron text-blue-600">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </span>
+                                </summary>
+                                <div class="p-5 border-t border-gray-200">
+                        `;
+
+                        const items = structuredData[category][subCategory];
+                        items.forEach((item, index) => {
+                            // Display all other columns for each row
+                            html += `<div class="text-gray-700 space-y-2">`;
+                            // Start from the 3rd column (index 2) as first two are Category/SubCategory
+                            for(let i = 2; i < headers.length; i++) {
+                                const header = headers[i];
+                                const value = item[header];
+                                if (value) {
+                                     html += `<p><strong class="font-medium text-gray-600">${header}:</strong> ${value}</p>`;
+                                }
+                            }
+                            html += `</div>`;
+
+                            // Add a separator line, but not after the very last item
+                            if (index < items.length - 1) {
+                                html += `<hr class="my-4 border-gray-200">`;
+                            }
+                        });
+
+                        html += `</div></details>`;
+                    }
+                    html += `</div></div>`;
+                }
+                contentContainer.innerHTML = html;
+            }
+
+            // Initial fetch
+            fetchAndDisplayData();
+        });
+    </script>
+
+</body>
+</html>
