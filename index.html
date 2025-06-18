@@ -67,178 +67,148 @@
 
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // The public URL of your Google Sheet, published as CSV
-            const sheetUrl = 'https://script.google.com/a/macros/stripe.com/s/AKfycbyvVr2wja61lRQGvk7FbNTFwJLhD1LtBdL5nh2615VNwn5YOEW_yzQrepJiOOtmIYJsTw/exec';
-            // Using a reliable CORS proxy to prevent fetch errors.
-            // The `allorigins` proxy fetches the raw content from the URL.
-           const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(sheetUrl)}`;
+   <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- MODIFICATION START ---
+        // 1. Paste the Web App URL you copied from Google Apps Script here.
+        const webAppUrl = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE';
+        // --- MODIFICATION END ---
 
-
-            const contentContainer = document.getElementById('content-container');
-            const loadingIndicator = document.getElementById('loading');
-            const errorMessageContainer = document.getElementById('error-message');
-            const errorTextElement = document.getElementById('error-text');
-            
-            /**
-             * Fetches and displays data from the Google Sheet via a public proxy.
-             */
-            async function fetchAndDisplayData() {
-                try {
-                    const response = await fetch(proxyUrl);
-                    if (!response.ok) {
-                        throw new Error(`The data source could not be reached. Status: ${response.status}`);
-                    }
-                    const csvText = await response.text();
-                     if (!csvText || csvText.trim() === '' || csvText.trim().startsWith('<!DOCTYPE html>')) {
-                        throw new Error("Received invalid or empty data. Please ensure the Google Sheet URL is correct and it is published as a CSV to the web.");
-                    }
-                    const data = parseCSV(csvText);
-                    const structuredData = structureData(data);
-                    displayData(structuredData);
-
-                } catch (error) {
-                    console.error('Failed to fetch or process data:', error);
-                    let userMessage = 'An unexpected error occurred. Please try again later.';
-                     if (error.message.includes('Failed to fetch')) {
-                        userMessage = 'A network error occurred. This may be due to browser security policies or a temporary issue. Running this page from a web server (like GitHub Pages) is recommended.';
-                    } else {
-                        userMessage = error.message; // Display other specific error messages
-                    }
-                    errorTextElement.textContent = userMessage;
-                    errorMessageContainer.classList.remove('hidden');
-                } finally {
-                    loadingIndicator.classList.add('hidden');
+        const contentContainer = document.getElementById('content-container');
+        const loadingIndicator = document.getElementById('loading');
+        const errorMessageContainer = document.getElementById('error-message');
+        const errorTextElement = document.getElementById('error-text');
+        
+        async function fetchAndDisplayData() {
+            try {
+                // --- MODIFICATION START ---
+                // 2. Fetch directly from your new Web App URL. No proxy needed.
+                const response = await fetch(webAppUrl);
+                if (!response.ok) {
+                    throw new Error(`The data source could not be reached. Status: ${response.status}`);
                 }
-            }
-
-            /**
-             * Parses CSV text into an array of objects.
-             * @param {string} text - The CSV data as a string.
-             * @returns {Array<Object>} An array of objects representing the rows.
-             */
-            function parseCSV(text) {
-                const lines = text.trim().split(/\r?\n/); // Handles both windows and unix line endings
-                const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-                const rows = [];
-
-                if (lines.length < 2) {
-                     throw new Error("The CSV data appears to be empty or has no data rows.");
-                }
-
-                for (let i = 1; i < lines.length; i++) {
-                    if (lines[i].trim() === '') continue; // Skip empty lines
-                    // This regex handles quoted fields with commas inside
-                    const values = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-                    
-                    if (values.length === headers.length) {
-                        const row = {};
-                        for (let j = 0; j < headers.length; j++) {
-                             // Remove quotes from start/end of value if they exist
-                            row[headers[j]] = values[j].trim().replace(/^"|"$/g, '');
-                        }
-                        rows.push(row);
-                    }
-                }
-                return rows;
-            }
-            
-            /**
-             * Groups the flat data array by Category, then by Sub Category.
-             * @param {Array<Object>} data - The parsed data from the CSV.
-             * @returns {Object} A nested object: { Category: { SubCategory: [rows] } }
-             */
-            function structureData(data) {
-                const structured = {};
-                if (!data || data.length === 0) return structured;
                 
-                const headers = Object.keys(data[0]);
-                if (headers.length < 2) {
-                    throw new Error("The CSV data must have at least two columns for Category and Sub-Category.");
+                // 3. The data is now JSON, not CSV text.
+                const data = await response.json();
+                
+                if (!data || data.length === 0) {
+                    throw new Error("Received no data from the API. Ensure the sheet is not empty.");
                 }
+                // --- MODIFICATION END ---
 
-                const categoryHeader = headers[0];
-                const subCategoryHeader = headers[1];
+                const structuredData = structureData(data);
+                displayData(structuredData);
 
-                data.forEach(row => {
-                    const category = row[categoryHeader];
-                    const subCategory = row[subCategoryHeader];
-
-                    if (!category || !subCategory) return;
-
-                    if (!structured[category]) {
-                        structured[category] = {};
-                    }
-                    if (!structured[category][subCategory]) {
-                        structured[category][subCategory] = [];
-                    }
-                    structured[category][subCategory].push(row);
-                });
-
-                return structured;
+            } catch (error) {
+                console.error('Failed to fetch or process data:', error);
+                let userMessage = error.message.includes('Failed to fetch') 
+                    ? 'A network error occurred. Please check your internet connection and ensure the Web App URL is correct.'
+                    : error.message;
+                
+                errorTextElement.textContent = userMessage;
+                errorMessageContainer.classList.remove('hidden');
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+        
+        // --- REMOVED ---
+        // 4. The parseCSV function is no longer needed because we get structured JSON directly.
+        // function parseCSV(text) { ... } 
+        // --- REMOVED ---
+        
+        /**
+         * Groups the flat data array by Category, then by Sub Category.
+         * This function should work as-is with the new JSON data.
+         * @param {Array<Object>} data - The parsed data from the API.
+         * @returns {Object} A nested object: { Category: { SubCategory: [rows] } }
+         */
+        function structureData(data) {
+            const structured = {};
+            if (!data || data.length === 0) return structured;
+            
+            const headers = Object.keys(data[0]);
+            if (headers.length < 2) {
+                throw new Error("The data must have at least two columns for Category and Sub-Category.");
             }
 
-            /**
-             * Renders the structured data into HTML and injects it into the page.
-             * @param {Object} structuredData - The grouped data.
-             */
-            function displayData(structuredData) {
-                let html = '';
-                const headers = Object.keys(structuredData).length > 0 && Object.keys(Object.values(structuredData)[0]).length > 0 && Object.values(Object.values(structuredData)[0])[0].length > 0 ? Object.keys(Object.values(Object.values(structuredData)[0])[0][0]) : [];
+            const categoryHeader = headers[0];
+            const subCategoryHeader = headers[1];
 
-                for (const category in structuredData) {
-                    // Main Category Title
-                    html += `<div class="category-group">`;
-                    html += `<h1 class="text-4xl font-bold text-blue-700 mb-6 pb-2 border-b-2 border-blue-200">${category}</h1>`;
-                    html += `<div class="space-y-4">`;
+            data.forEach(row => {
+                const category = row[categoryHeader];
+                const subCategory = row[subCategoryHeader];
 
-                    for (const subCategory in structuredData[category]) {
-                        // Collapsible Sub Category Section
-                        html += `
-                            <details class="group bg-white rounded-xl shadow-md transition hover:shadow-lg">
-                                <summary class="flex justify-between items-center p-5 cursor-pointer list-none">
-                                    <h2 class="text-xl font-semibold text-gray-800">${subCategory}</h2>
-                                    <span class="chevron text-blue-600">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                    </span>
-                                </summary>
-                                <div class="p-5 border-t border-gray-200">
-                        `;
+                if (!category || !subCategory) return;
 
-                        const items = structuredData[category][subCategory];
-                        items.forEach((item, index) => {
-                            // Display all other columns for each row
-                            html += `<div class="text-gray-700 space-y-2">`;
-                            // Start from the 3rd column (index 2) as first two are Category/SubCategory
-                            for(let i = 2; i < headers.length; i++) {
-                                const header = headers[i];
-                                const value = item[header];
-                                if (value) {
-                                     html += `<p><strong class="font-medium text-gray-600">${header}:</strong> ${value}</p>`;
-                                }
-                            }
-                            html += `</div>`;
-
-                            // Add a separator line, but not after the very last item
-                            if (index < items.length - 1) {
-                                html += `<hr class="my-4 border-gray-200">`;
-                            }
-                        });
-
-                        html += `</div></details>`;
-                    }
-                    html += `</div></div>`;
+                if (!structured[category]) {
+                    structured[category] = {};
                 }
-                contentContainer.innerHTML = html;
-            }
+                if (!structured[category][subCategory]) {
+                    structured[category][subCategory] = [];
+                }
+                structured[category][subCategory].push(row);
+            });
 
-            // Initial fetch
-            fetchAndDisplayData();
-        });
-    </script>
+            return structured;
+        }
+
+        /**
+         * Renders the structured data into HTML and injects it into the page.
+         * This function should work perfectly with the new data structure.
+         * @param {Object} structuredData - The grouped data.
+         */
+        function displayData(structuredData) {
+            let html = '';
+            // Get headers from the first item in the structured data
+            const headers = Object.keys(structuredData).length > 0 && Object.keys(Object.values(structuredData)[0]).length > 0 && Object.values(Object.values(structuredData)[0])[0].length > 0 ? Object.keys(Object.values(Object.values(structuredData)[0])[0][0]) : [];
+
+            for (const category in structuredData) {
+                html += `<div class="category-group">`;
+                html += `<h1 class="text-4xl font-bold text-blue-700 mb-6 pb-2 border-b-2 border-blue-200">${category}</h1>`;
+                html += `<div class="space-y-4">`;
+
+                for (const subCategory in structuredData[category]) {
+                    html += `
+                        <details class="group bg-white rounded-xl shadow-md transition hover:shadow-lg">
+                            <summary class="flex justify-between items-center p-5 cursor-pointer list-none">
+                                <h2 class="text-xl font-semibold text-gray-800">${subCategory}</h2>
+                                <span class="chevron text-blue-600">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </span>
+                            </summary>
+                            <div class="p-5 border-t border-gray-200">
+                    `;
+
+                    const items = structuredData[category][subCategory];
+                    items.forEach((item, index) => {
+                        html += `<div class="text-gray-700 space-y-2">`;
+                        for(let i = 2; i < headers.length; i++) {
+                            const header = headers[i];
+                            const value = item[header];
+                            if (value) {
+                                 html += `<p><strong class="font-medium text-gray-600">${header}:</strong> ${value}</p>`;
+                            }
+                        }
+                        html += `</div>`;
+
+                        if (index < items.length - 1) {
+                            html += `<hr class="my-4 border-gray-200">`;
+                        }
+                    });
+                    html += `</div></details>`;
+                }
+                html += `</div></div>`;
+            }
+            contentContainer.innerHTML = html;
+        }
+
+        // Initial fetch
+        fetchAndDisplayData();
+    });
+</script>
 
 </body>
 </html>
